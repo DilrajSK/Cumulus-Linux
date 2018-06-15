@@ -1,0 +1,177 @@
+******************************************************************************
+SAMPLE INTERFACES FILE
+******************************************************************************
+cumulus@cumulus:/etc/network$ more interfaces
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*.intf
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+auto eth0
+iface eth0 inet dhcp
+
+auto swp1
+iface swp1
+
+auto swp2
+iface swp2
+
+
+************************************************************************
+CREATE A BRIDGE WITH ACCESS PORTS
+************************************************************************
+auto bridge
+iface <bridge_name>
+ bridge-vlan-aware yes
+ bridge-ports swp1 swp2
+ bridge-pvid 1
+ bridge-stp on
+ 
+************************************************************************
+CREATE A BRIDGE WITH TRUNK PORTS
+************************************************************************
+auto bridge
+iface <bridge_name>
+ bridge-vlan-aware yes
+ bridge-ports swp1 swp2
+ bridge-vids 100 200
+ bridge-pvid 1
+ bridge-stp on
+ 
+ Here, port 1 and 2 are trunk ports allowing VLAN 100 and 200
+ 
+************************************************************************
+CREATE AN INTERFACE BOND
+************************************************************************
+auto bond0
+iface bond0
+ bond-slaves swp1 swp2
+ bond-mode 802.3ad
+ bond-miimon 100 (Failure Inspection Frequency. 100 millisecond)
+ bond-lacp-rate 1 (Fast mode)
+ bond-min-links 1
+ bond-xmit-hash-policy layer 3+4
+
+cat /proc/net/bonding/<bond_name> (View details of the Bond interface)
+
+********************************************************************
+INSTALL ONIE ON A PHYSICAL SWITCH
+********************************************************************
+1. Switch must have connection to the Web Server where the INIE installer is located.
+2. Reboot the switch using command: onie reboot
+3. Break the booting sequence by pressing any key and run command "run onie_bootcmd". This will install ONIE and reboot the device
+Doing this will reset the swtich and all config will get lost.
+
+*********************************************************************
+IMAGE UPGRADES
+*********************************************************************
+cumulus@cumulus:$ sudo onie-install -u http://<IP_of_the_WebServer>/<Installer_name>(Install Cumulus Linux). For older versions, use command: sudo cl-img-install. Use -h after the command for help
+cumulus@cumulus:$ sudo onie-select (Check the images in the Image Slots). For older versions, use command: sudo cl-img-select
+cumulus@cumulus:$ sudo onie-select -s (Swap the Primary and Secondary Images). For older versions, use command: sudo cl-img-select -s
+
+cumulus@cumulus:$ sudo apt-get update (Apply maintenance releases/Patches). After that run the below:
+cumulus@cumulus:$ sudo apt-get dist-upgrade (Might have to reboot the switch to apply the patch/upgrade)
+
+cumulus@cumulus:$ cd /mnt/onie-boot/ (Shared Location of the two Image Slots). For older versions, use location: /mnt/persist/
+
+*********************************************************************
+INSTALLING LICENSE
+*********************************************************************
+cumulus@cumulus:$ sudo cl-license -i http://<ip_address_of _server_where_license_is_located>/<license_name>.lic (Extract the license from the http server)
+cumulus@cumulus:$ sudo service switchd restart (Restart the switch d process. This will enable the functionality)
+cumulus@cumulus:$ sudo cl-license (Shows the license hash)
+
+Physical switch ports will not come-up if license is not installed.
+
+************************************************************************
+CREATE A USER WITH ROOT PRIVILEDGE
+************************************************************************
+sudo useradd -m <user_name> (Creating a User)
+sudo usermod -a -G sudo <user_name> (Granting root access)
+id <user_name> (Check the details of the user)
+ 
+************************************************************************
+INSTALLING ZTP(ZERO TOUCH PROVISIONING)
+************************************************************************
+1. Requires DHCP server to be configured and Cumulus Auto Provisioning options needs to be set.
+In the DHCP server, in file etc/dhcp/dhcpd.conf, under "Options", add line "option cumulus-provision-url code 239 = text;"
+
+1. Automatuon requires Web Server to be configured to extrat the ZTP file to the Cumulus Box. A sample ZTP file can be downloaded from the Cumulus Networks'
+Github website and import it in the root directory of the web server.
+2. On the Cumulus Box, go to /etc/dhcp/dhcpd.pools and modify the line "option cumulus-provision-url" and set it as shown below:
+   option cumulus-provision-url "http://<IP_of_the_WebServer>/<ZTP_file_downloaded_from_GitHub>.sh";
+3. Reboot the switch
+
+cat /var/log/autoprovision (Check if the Auto-Provisioning is installed successfully or not)
+cat /var/lib/cumulus/autoprovision.conf (Same as above. Check if "enabled" and "complete" are set to "True" and the "detail" option has the path to the file)
+ 
+*************************************************************************************
+TROUBLESHOOTING COMMANDS
+*************************************************************************************
+cumulus@cumulus:$ ip link show (show l2 details of the ports)
+cumulus@cumulus:$ ip addr show (show l3 details of the ports)
+cumulus@cumulus:$ ip link show <port> (Display details of a specific port)
+cumulus@cumulus:$ ip -s link show <port> (Shows more details of the ports)
+cumulus@cumulus:$ ip -s -s link show <port> (Similar as above but will show the errors as well)
+cumulus@cumulus:$ ip route show
+cumulus@cumulus:$ ip route get <IP_address/mask> (Shows the next hop to reach to the address mentioned)
+*****************
+cumulus@cumulus:$ brctl show (Show bridge details)
+cumulus@cumulus:$ brctl showmacs <bridge_name> (Shows the MAC addresses learnt by the ports of that bridge)
+cumulus@cumulus:$ bridge vlan show (VLANs assigned to the bridge)
+*****************
+cumulus@cumulus:$ mstpctl showport <bridge_name>
+cumulus@cumulus:$ mstpctl showportdetail bridge <port_name> (Show details of individual port)
+cumulus@cumulus:$ mstpctl showbridge <bridge_name> (show spanning tree related details for a bridge)
+*****************
+cumulus@cumulus:$ sudo ifreload -a (refresh the network interfaces)
+cumulus@cumulus:$ sudo ifconfig
+cumulus@cumulus:$ sudo ifconfig
+cumulus@cumulus:$ sudo ifup <port> (To bring up an interface)
+cumulus@cumulus:$ sudo ifdown <port> (To bring down an interface)
+*****************
+cumulus@cumulus:$ sudo ethtool <port> (Check status 0f an Interface using ethtool)
+cumulus@cumulus:$ sudo ethtool -S <port> (Query Interface Statistics)
+cumulus@cumulus:$ sudo ethtool -m <port> (Query SFP Statistics)
+*****************
+cumulus@cumulus:$ sudo lldpctl (show neighbor LLDP enabled devices)
+cumulus@cumulus:$ sudo lldpcli show neighbors (Similar command as above)
+*****************
+cumulus@cumulus:$ netshow interface (View interfaces on the switch)
+cumulus@cumulus:$ netshow interface <port> (Show details of a particular port)
+cumulus@cumulus:$ netshow system (Show overall switch information)
+cumulus@cumulus:$ netshow bond (Show details of bonded interfaces)
+cumulus@cumulus:$ netshow bondmem
+*****************
+cumulus@cumulus:$ sudo cl-netstat (Displaythe Interface Counter Statistics)
+cumulus@cumulus:$ sudo cl-support (Collect switch logs to send to Cumulus Linux Support, Sort of show tech)
+cumulus@cumulus:$ tail /var/log/syslog (View the logs)
+cumulus@cumulus:$ tail /var/log/switchd (View the Switch port related logs)
+cumulus@cumulus:$ cat /var/log/syslog | grep smond (Show PSU and Fan Status)
+*****************
+cumulus@cumulus:$ sensors (Check Sensors Information)
+cumulus@cumulus:$ sudo decode-syseeprom (Check the hardware details of the switch)
+cumulus@cumulus:$ uname -p (Check the architecture of the Switch)
+cumulus@cumulus:$ cat /etc/lsb-release (Shows the current release)
+*****************
+cumulus@cumulus:$ ping -I <source_IP_address> <dest_IP_address>
+cumulus@cumulus:$ traceroute <IP_address>
+cumulus@cumulus:$ sudo tcpdump -i <port> src host <IP_address>
+cumulus@cumulus:$ arp -a (show arp cache details)
+cumulus@cumulus:$ arp -d (Delete the arp cache details)
+cumulus@cumulus:$ sudo mz swp1 -A <src_IP> -B <dest_IP> -c 2 -v -t tcp "dp=23-24" (Generate packets to simulate network traffic)
+*****************
+cumulus@cumulus:$ sudo vtysh (Takes us to the currrent routing service which is being used. The mode is Called as Modal CLI)
+cumulus@cumulus:$ sudo vtysh -c '<command_to_send>' (This will help to execute the commands in non-modal CLI mode)
+cumulus@cumulus:$ sudo vtysh -c '<command_to_send>' -c '<command_to_send>' (Can send multiple commands using this format)
+*****************
+cumulus@cumulus:$ sudo systemctl restart frr.service (Restart the frr service)
+cumulus@cumulus:$ sudo service quagga restart (Restart the Quagga Service)
+*****************
+cumulus@cumulus:$ cd /var/www/ (Location of the files stored on the web server. Once ONIE is connected to the server, we will be able to see the available files in the server)
+cumulus@cumulus:$ 
